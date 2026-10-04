@@ -1,6 +1,7 @@
 # Project-Poltergeist
 
 CaaS (Compute as services)
+On-demand app streaming and execution across clouds
 
 Hardware keeps getting more expensive, but most people only need powerful
 machines for a few hours at a time. Poltergeist lets you run any app on a
