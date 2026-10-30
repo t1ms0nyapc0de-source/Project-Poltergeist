@@ -1,0 +1,140 @@
+#!/usr/bin/env bash
+# polt - Project Poltergeist CLI
+# Unified entry point for host setup and full VM lifecycle management.
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+usage() {
+  cat <<'EOF'
+polt - Project Poltergeist CLI
+Unified host setup and libvirt VM lifecycle management.
+
+Usage: polt <command> [options]
+
+COMMANDS:
+  setup                  Set up KVM/libvirt on the host
+                         (CPU virt check, packages, libvirtd, /dev/kvm, user groups)
+
+  create-vm  --name NAME --iso PATH [options]
+                         Create a new libvirt VM from an ISO image
+
+  delete-vm  --name NAME [options]
+                         Undefine/delete a libvirt VM (optional storage removal)
+
+  list-vms               List all VMs and their states
+
+  start-vm   --name NAME [--console] [--wait]
+                         Start a shutoff VM
+
+  stop-vm    --name NAME [--force] [--timeout SECS]
+                         Gracefully stop (or force power-off) a VM
+
+  info-vm    --name NAME [--security-info]
+                         Show detailed VM configuration and state
+
+  console-vm --name NAME [--force]
+                         Connect to a VM serial console (Ctrl+] to detach)
+
+  network <subcommand>   Manage libvirt virtual networks
+                         list | default | start --name NAME |
+                         stop --name NAME | autostart --name NAME
+
+  storage <subcommand>   Manage libvirt storage pools and volumes
+                         list | volumes --pool NAME |
+                         default | create-vol --pool NAME --name VOL --size GiB |
+                         delete-vol --pool NAME --name VOL |
+                         autostart --pool NAME
+
+  help                   Show this help
+
+GLOBAL OPTIONS:
+  --connection URI       Libvirt URI (default: qemu:///system)
+                         (accepted by most commands)
+
+EXAMPLES:
+  # One-time host setup (run once after OS install)
+  polt setup
+
+  # Create and start a VM
+  polt create-vm --name ubuntu --iso ./ubuntu.iso --memory 8192 --vcpus 4 --disk 60 --uefi --start
+
+  # List VMs
+  polt list-vms
+  polt list-vms --state running
+
+  # Start / stop / inspect
+  polt start-vm --name ubuntu --console
+  polt stop-vm --name ubuntu --timeout 120
+  polt info-vm --name ubuntu
+
+  # Console access
+  polt console-vm --name ubuntu
+
+  # Ensure default network and storage exist
+  polt network default
+  polt storage default
+
+  # Delete a VM and its disks
+  polt delete-vm --name ubuntu --remove-storage --yes
+
+GETTING STARTED:
+  1. polt setup                          # prepare the host
+  2. polt network default                # ensure virtual networking
+  3. polt storage default                # ensure default storage pool
+  4. polt create-vm --name vm1 --iso os.iso --start
+  5. polt console-vm --name vm1          # complete OS install
+
+Run 'polt <command> --help' for command-specific options.
+EOF
+}
+
+if [[ $# -eq 0 ]]; then
+  usage
+  exit 0
+fi
+
+cmd="$1"
+shift || true
+
+case "$cmd" in
+  setup)
+    exec bash "$SCRIPT_DIR/Setup.sh" "$@"
+    ;;
+  create-vm|create)
+    exec bash "$SCRIPT_DIR/create-vm.sh" "$@"
+    ;;
+  delete-vm|delete)
+    exec bash "$SCRIPT_DIR/delete-vm.sh" "$@"
+    ;;
+  list-vms|list)
+    exec bash "$SCRIPT_DIR/list-vms.sh" "$@"
+    ;;
+  start-vm|start)
+    exec bash "$SCRIPT_DIR/start-vm.sh" "$@"
+    ;;
+  stop-vm|stop)
+    exec bash "$SCRIPT_DIR/stop-vm.sh" "$@"
+    ;;
+  info-vm|info)
+    exec bash "$SCRIPT_DIR/info-vm.sh" "$@"
+    ;;
+  console-vm|console)
+    exec bash "$SCRIPT_DIR/console-vm.sh" "$@"
+    ;;
+  network)
+    exec bash "$SCRIPT_DIR/network.sh" "$@"
+    ;;
+  storage)
+    exec bash "$SCRIPT_DIR/storage.sh" "$@"
+    ;;
+  help|--help|-h)
+    usage
+    exit 0
+    ;;
+  *)
+    printf 'error: unknown command: %s\n' "$cmd" >&2
+    usage >&2
+    exit 1
+    ;;
+esac

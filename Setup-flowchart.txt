@@ -1,0 +1,143 @@
+Setup.sh execution flow
+=======================
+
+  +-------+
+  | START |
+  +---+---+
+      |
+      v
+  +---------------------------+
+  | Running as root (EUID=0)? |
+  +----+------------------+---+
+       | Yes              | No
+       v                  v
+  SUDO=""             SUDO="sudo"
+       \                  /
+        v                v
+  +-------------------------------------+
+  | TARGET_USER = SUDO_USER, else USER  |
+  +------------------+------------------+
+                     |
+                     v
+  +----------------------------------------+
+  | CPU supports virtualization (vmx/svm)? |
+  +---------+--------------------------+---+
+            | Yes                      | No
+            v                          v
+      [Continue]       +-----------------------------------+
+                       | Print virtualization error        |
+                       +----------------+------------------+
+                                        |
+                            +-----------v-----------+
+                            | UEFI firmware present? |
+                            +------+-------------+--+
+                                   | Yes         | No
+                                   v             v
+                    +---------------------+  Print legacy-BIOS
+                    | Reboot to UEFI? y?  |  instructions
+                    +-----+-----------+---+        |
+                          | Yes       | No          |
+                          v           v             |
+                   Reboot firmware  Print manual    |
+                   setup; exit 0    instructions    |
+                          |           |             |
+                          +-----------+-------------+
+                                      |
+                                    exit 1
+
+  +--------------------------------------------------------+
+  | virsh AND qemu-system-x86_64 commands already present? |
+  +------------------------+----------------------------+--+
+                           | Yes                        | No
+                           v                            v
+                  Print "already installed"   Ask to install KVM tools
+                                                    |
+                                      +-------------+-------------+
+                                      | Yes                       | No
+                                      v                           v
+                      +-------------------------------+  Print "Skipping install"
+                      | Detect package manager:       |          |
+                      | apt / dnf / pacman / zypper   |          |
+                      +---------------+---------------+          |
+                                      |                             |
+                   unsupported? -----+---- no                       |
+                      | yes                 v                        |
+                      v               Install packages               |
+           Print manual-install       success?                       |
+           advice; return 1            | yes       | no              |
+                                      /              v               |
+                       [merge below]              exit 1            |
+                                      \_____________________________/
+                                                    |
+                                                    v
+  +--------------------+
+  | Is virsh available?|
+  +------+----------+--+
+         | Yes      | No
+         v          |
+  Enable/start       |
+  libvirtd           |
+    | success?       |
+    | no             |
+    v                |
+  Enable/start       |
+  libvirtd.socket    |
+    | fails -> print |
+    | diagnostic     |
+    +-------+--------+
+            |
+            v
+  +-------------------+
+  | Does /dev/kvm exist? |
+  +--------+----------+--+
+           | Yes      | No
+           v          v
+      Print ready   Try to load module
+                    |
+             +------+------------------+
+             | Intel | AMD | unknown   |
+             v       v       v         |
+        modprobe  modprobe  Print error;|
+        kvm_intel kvm_amd   exit 1      |
+             \       /                 |
+              v                         |
+       +--------------------+           |
+       | /dev/kvm now exists?|           |
+       +-------+--------+---+           |
+               | Yes   | No             |
+               v       v                |
+      Print module    Print dmesg hint; |
+      loaded          exit 1            |
+               \        /               |
+                v                       |
+  +-----------------------------------+ |
+  | For each group: libvirt, then kvm |<+
+  +----------------+------------------+
+                   |
+      Group exists and TARGET_USER is not a member?
+                   |
+           Yes ----+----> usermod -aG; print logout reminder
+           No  ----+----> continue
+                   |
+                   v
+  +--------------------------------+
+  | Can current user read/write    |
+  | /dev/kvm?                      |
+  +----------+------------------+--+
+             | Yes              | No
+             v                  v
+    Print permission OK    Print logout/login reminder
+             \                  /
+              v                v
+  +--------------------+
+  | Is virsh available?|
+  +--------+--------+--+
+           | Yes    | No
+           v        v
+  Print libvirt   (skip)
+  VM list            |
+           \        /
+              v
+          +-------+
+          |  END  |
+          +-------+
